@@ -1,13 +1,16 @@
 import edu.princeton.cs.algs4.Bag;
 import edu.princeton.cs.algs4.Digraph;
 import edu.princeton.cs.algs4.In;
+import edu.princeton.cs.algs4.Queue;
 import edu.princeton.cs.algs4.ST;
+import edu.princeton.cs.algs4.StdOut;
 
 public class WordNet {
 
-    private ST<String, Bag<Integer>> st;
-    private Bag<String>[] keys;
-    private Digraph G;
+    private ST<String, Bag<Integer>> st;  // a symbol table restore a nouns and its related IDs
+    private Queue<String>[] keys;         // the ith element in keys represent the synsets whose ID is i
+    private Digraph G;                    // a directed graph constructed by hypernyms files
+    private SAP searchPath;  // reinitializing the entries that changed in the previous computation
 
     public WordNet(String synsets, String hypernyms) {
         if (synsets == null || hypernyms == null) throw new IllegalArgumentException();
@@ -29,22 +32,31 @@ public class WordNet {
             }
             ++ID;
         }
-        keys = (Bag<String>[]) new Bag[ID];
+        keys = (Queue<String>[]) new Queue[ID];
         for (int i = 0; i < ID; i++)
-            keys[i] = new Bag<>();
+            keys[i] = new Queue<>();
         for (String name : st.keys()) {
             for (int e : st.get(name))
-                keys[e].add(name);
+                keys[e].enqueue(name);
         }
         G = new Digraph(ID);
+        boolean[] marked = new boolean[ID];
+        int root = -1;
         in = new In(hypernyms);
         while (in.hasNextLine()) {
             String[] a = in.readLine().split(",");
             int v = Integer.parseInt(a[0]);
+            if (a.length == 1) root = v;
+            marked[v] = true;
             for (int i = 1; i < a.length; i++) {
-                G.addEdge(v, Integer.parseInt(a[i]));
+                int w = Integer.parseInt(a[i]);
+                // if (marked[v] && marked[w]) throw new IllegalArgumentException();
+                G.addEdge(v, w);
+                marked[w] = true;
             }
         }
+//        if (root == -1) throw new IllegalArgumentException();
+        searchPath = new SAP(G);
     }
 
     public Iterable<String> nouns() {
@@ -57,28 +69,29 @@ public class WordNet {
 
     public int distance(String nounA, String nounB) {
         if (!isNoun(nounA) || !isNoun(nounB)) throw new IllegalArgumentException();
-        SAP var1 = new SAP(G);
         Bag<Integer> intA = st.get(nounA);
         Bag<Integer> intB = st.get(nounB);
-        return var1.length(intA, intB);
+        int length = searchPath.length(intA, intB);
+
+        return length;
     }
 
     public String sap(String nounA, String nounB) {
-        SAP var1 = new SAP(G);
+        if (!isNoun(nounA) || !isNoun(nounB)) throw new IllegalArgumentException();
         Bag<Integer> intA = st.get(nounA);
         Bag<Integer> intB = st.get(nounB);
-        int ancenstor = var1.ancestor(intA, intB);
-        String res = "";
-        for (String e : keys[ancenstor]) {
-            res += e;
-        }
-        return res;
+        int ancenstor = searchPath.ancestor(intA, intB);
+        return String.join(" ", keys[ancenstor]);
     }
 
     public static void main(String[] args) {
         WordNet w = new WordNet("C:\\Users\\JXT\\IdeaProjects\\WordNet\\test\\synsets.txt",
                 "C:\\Users\\JXT\\IdeaProjects\\WordNet\\test\\hypernyms.txt");
-        w.distance("white_marlin", "mileage");
-        int a = 1;
+        StdOut.println(w.distance("white_marlin", "mileage"));
+        StdOut.println(w.distance("Black_Plague", "black_marlin"));
+        StdOut.println(w.distance("American_water_spaniel", "histology"));
+        StdOut.println(w.distance("Brown_Swiss", "barrel_roll"));
+        StdOut.println(w.distance("schlep", "War_of_the_Grand_Alliance"));
+        StdOut.println(w.sap("schlep", "War_of_the_Grand_Alliance"));
     }
 }

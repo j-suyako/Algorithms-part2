@@ -7,147 +7,160 @@ import edu.princeton.cs.algs4.StdIn;
 import edu.princeton.cs.algs4.StdOut;
 
 public class SAP {
-    private class myBreadthSearch {
-        private int[] v_res;
-        private int[] w_res;
-        private boolean[] v_marked;
-        private boolean[] w_marked;
-        private int[] v_edgeTo;
-        private int[] w_edgeTo;
-
-        public myBreadthSearch(int V) {
-            v_res = new int[V];
-            w_res = new int[V];
-            v_marked = new boolean[V];
-            w_marked = new boolean[V];
-            v_edgeTo = new int[V];
-            w_edgeTo = new int[V];
-            for (int i = 0; i < V; i++) {
-                v_edgeTo[i] = i;
-                w_edgeTo[i] = i;
-            }
-        }
-
-        public int searchPaths(Queue<Integer> from_v, Queue<Integer> from_w) {
-            for (Integer e : from_v)
-                v_marked[e] = true;
-            for (Integer e : from_w) {
-                if (v_marked[e])
-                    return e;
-                w_marked[e] = true;
-            }
-            Bag<Integer> res = new Bag<>();
-            while (!from_v.isEmpty() || !from_w.isEmpty()) {
-                int curr;
-                if (!from_v.isEmpty()) {
-                    curr = from_v.dequeue();
-                    for (int e : original.adj(curr)) {
-                        if (!v_marked[e]) {
-                            v_res[e] = v_res[curr] + 1;
-                            v_edgeTo[e] = curr;
-                            v_marked[e] = true;
-                            from_v.enqueue(e);
-                        }
-                        if (w_marked[e]) {
-                            res.add(e);
-                        }
-                    }
-                }
-                if (!from_w.isEmpty()) {
-                    curr = from_w.dequeue();
-                    for (int e : original.adj(curr)) {
-                        if (!w_marked[e]) {
-                            w_res[e] = w_res[curr] + 1;
-                            w_edgeTo[e] = curr;
-                            w_marked[e] = true;
-                            from_w.enqueue(e);
-                        }
-                        if (v_marked[e]) {
-                            res.add(e);
-                        }
-                    }
-                }
-            }
-            int min_dis = 1 << 10;
-            int ancenstor = -1;
-            for (int e : res) {
-                if (v_res[e] + w_res[e] < min_dis) {
-                    min_dis = v_res[e] + w_res[e];
-                    ancenstor = e;
-                }
-            }
-            return ancenstor;
-        }
-    }
     private int V;
     private Digraph original;
-    private Graph noDirectWordNet;
+    private int[] v_res;
+    private int[] w_res;
+    private boolean[] v_marked;
+    private boolean[] w_marked;
+    private Queue<Integer> all_marked;
 
     private boolean check(int arg) {
         return arg >= 0 && arg < V;
+    }
+    private boolean check(Iterable<Integer> args) {
+        if (args == null) throw new IllegalArgumentException();
+        for (int e : args) {
+            if (!check(e))
+                return false;
+        }
+        return true;
+    }
+
+    private int searchAncestor(Queue<Integer> from_v, Queue<Integer> from_w) {
+        for (Integer e : from_v) {
+            v_marked[e] = true;
+            all_marked.enqueue(e);
+        }
+        for (Integer e : from_w) {
+            if (v_marked[e])
+                return e;
+            w_marked[e] = true;
+            all_marked.enqueue(e);
+        }
+        int min_dis = Integer.MAX_VALUE;
+        int length_from_v = 0;
+        int length_from_w = 0;
+        int res = -1;
+        // Bag<Integer> res = new Bag<>();
+        while (!from_v.isEmpty() || !from_w.isEmpty()) {
+            int curr;  // the reference of current element
+            if (!from_v.isEmpty()) {
+                curr = from_v.dequeue();
+                for (int e : original.adj(curr)) {
+                    if (!v_marked[e]) {
+                        v_res[e] = v_res[curr] + 1;
+                        v_marked[e] = true;
+                        from_v.enqueue(e);
+                    }
+                    if (w_marked[e]) {
+                        if (v_res[e] + w_res[e] < min_dis) {
+                            min_dis = v_res[e] + w_res[e];
+                            res = e;
+                        }
+                    } else {
+                        all_marked.enqueue(e);
+                    }
+                }
+                length_from_v = v_res[curr];
+            }
+            if (!from_w.isEmpty()) {
+                curr = from_w.dequeue();
+                for (int e : original.adj(curr)) {
+                    if (!w_marked[e]) {
+                        w_res[e] = w_res[curr] + 1;
+                        w_marked[e] = true;
+                        from_w.enqueue(e);
+                    }
+                    if (v_marked[e]) {
+                        if (v_res[e] + w_res[e] < min_dis) {
+                            min_dis = v_res[e] + w_res[e];
+                            res = e;
+                        }
+                    } else {
+                        all_marked.enqueue(e);
+                    }
+                }
+                length_from_w = w_res[curr];
+            }
+            //if (length_from_v + length_from_w >= min_dis) break;
+        }
+        return res;
+    }
+
+    private void reinitialize() {
+        while (!all_marked.isEmpty()) {
+            int e = all_marked.dequeue();
+            v_res[e] = 0;
+            w_res[e] = 0;
+            v_marked[e] = false;
+            w_marked[e] = false;
+        }
     }
 
     public SAP(Digraph G) {
         if (G == null) throw new IllegalArgumentException();
         V = G.V();
         original = G;
-        noDirectWordNet = new Graph(V);
-        for (int i = 0; i < G.V(); i++) {
-            for (int e : G.adj(i))
-                noDirectWordNet.addEdge(i, e);
-        }
+        v_res = new int[V];
+        w_res = new int[V];
+        v_marked = new boolean[V];
+        w_marked = new boolean[V];
+        all_marked = new Queue<>();
     }
 
     public int length(int v, int w) {
         if (!check(v) || !check(w)) throw new IllegalArgumentException();
-        myBreadthSearch paths = new myBreadthSearch(noDirectWordNet.V());
         Queue<Integer> toRetrive = new Queue<>();
         toRetrive.enqueue(v);
         Queue<Integer> target = new Queue<>();
         target.enqueue(w);
-        int ancestor = paths.searchPaths(toRetrive, target);
-        return ancestor == -1 ? -1 : (paths.v_res[ancestor] + paths.w_res[ancestor]);
+        int ancestor = searchAncestor(toRetrive, target);
+        int length = ancestor == -1 ? -1 : (v_res[ancestor] + w_res[ancestor]);
+        reinitialize();
+        return length;
     }
 
     public int ancestor(int v, int w) {
         if (!check(v) || !check(w)) throw new IllegalArgumentException();
-        myBreadthSearch paths = new myBreadthSearch(noDirectWordNet.V());
         Queue<Integer> toRetrive = new Queue<>();
         toRetrive.enqueue(v);
         Queue<Integer> target = new Queue<>();
         target.enqueue(w);
-        return paths.searchPaths(toRetrive, target);
+        int ancestor = searchAncestor(toRetrive, target);
+        reinitialize();
+        return ancestor;
     }
 
     public int length(Iterable<Integer> v, Iterable<Integer> w) {
-        myBreadthSearch paths = new myBreadthSearch(noDirectWordNet.V());
+        if (!check(v) || !check(w)) throw new IllegalArgumentException();
         Queue<Integer> toRetrive = new Queue<>();
         for (int e : v)
             toRetrive.enqueue(e);
         Queue<Integer> target = new Queue<>();
         for (int e : w)
             target.enqueue(e);
-        int ancestor = paths.searchPaths(toRetrive, target);
-        return ancestor == -1 ? -1 : (paths.v_res[ancestor] + paths.w_res[ancestor]);
+        int ancestor = searchAncestor(toRetrive, target);
+        int length = ancestor == -1 ? -1 : (v_res[ancestor] + w_res[ancestor]);
+        reinitialize();
+        return length;
     }
 
     public int ancestor(Iterable<Integer> v, Iterable<Integer> w) {
-        myBreadthSearch paths = new myBreadthSearch(noDirectWordNet.V());
+        if (!check(v) || !check(w)) throw new IllegalArgumentException();
         Queue<Integer> toRetrive = new Queue<>();
-        for (int e : v) {
-            if (!check(e)) throw new IllegalArgumentException();
+        for (int e : v)
             toRetrive.enqueue(e);
-        }
         Queue<Integer> target = new Queue<>();
-        for (int e : w) {
-            if (!check(e)) throw new IllegalArgumentException();
+        for (int e : w)
             target.enqueue(e);
-        }
-        return paths.searchPaths(toRetrive, target);
+        int ancestor = searchAncestor(toRetrive, target);
+        reinitialize();
+        return ancestor;
     }
 
     public static void main(String[] args) {
-        In in = new In("C:\\Users\\JXT\\IdeaProjects\\WordNet\\test\\digraph1.txt");
+        In in = new In("C:\\Users\\JXT\\IdeaProjects\\WordNet\\test\\digraph2.txt");
         Digraph G = new Digraph(in);
         SAP sap = new SAP(G);
 //        Stack<Integer> v = new Stack<>();
